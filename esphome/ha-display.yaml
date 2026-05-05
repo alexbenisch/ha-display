@@ -1,0 +1,1329 @@
+################################################################################
+# ha-display — ESPHome config
+# Device: GUITION JC8012P4A1C (ESP32-P4 + ESP32-C6, 10.1" 1280×800 landscape)
+################################################################################
+
+esphome:
+  name: ha-display
+  friendly_name: Eltern Display
+
+esp32:
+  board: esp32-p4-evboard
+  cpu_frequency: 360MHz
+  flash_size: 16MB
+  framework:
+    type: esp-idf
+    sdkconfig_options:
+      CONFIG_ESP_TASK_WDT_TIMEOUT_S: "30"
+
+# ─── Connectivity ─────────────────────────────────────────────────────────────
+# ESP32-P4 has no built-in WiFi. The ESP32-C6 companion chip provides it via
+# SDIO. esp32_hosted must be declared before wifi:.
+
+esp32_hosted:
+  variant: ESP32C6
+  active_high: true
+  reset_pin: GPIO54
+  clk_pin: GPIO18
+  cmd_pin: GPIO19
+  d0_pin: GPIO14
+  d1_pin: GPIO15
+  d2_pin: GPIO16
+  d3_pin: GPIO17
+
+wifi:
+  networks:
+    - ssid: !secret wifi_ssid
+      password: !secret wifi_password
+  ap:
+    ssid: "ha-display Fallback"
+    password: !secret ap_password
+
+captive_portal:
+
+logger:
+  level: INFO
+
+api:
+  encryption:
+    key: !secret api_key
+
+ota:
+  - platform: esphome
+    password: !secret ota_password
+
+time:
+  - platform: sntp
+    id: sntp_time
+    timezone: Europe/Berlin
+
+# ─── External components ──────────────────────────────────────────────────────
+
+external_components:
+  - source: github://kvj/esphome@jd9365_gsl3680
+    components: [gsl3680]
+
+# ─── PSRAM / LDO / I2C / Backlight ───────────────────────────────────────────
+
+psram:
+  speed: 200MHz
+
+esp_ldo:
+  - channel: 3
+    voltage: 2.5V
+
+i2c:
+  - id: bus_a
+    sda: GPIO7
+    scl: GPIO8
+    frequency: 400kHz
+    scan: false
+
+output:
+  - platform: ledc
+    pin: GPIO23
+    id: backlight_pwm
+
+light:
+  - platform: monochromatic
+    name: "Backlight"
+    output: backlight_pwm
+    id: backlight
+    restore_mode: ALWAYS_ON
+    default_transition_length: 500ms
+
+# ─── Display (MIPI DSI, JD9365 panel) ────────────────────────────────────────
+
+display:
+  - platform: mipi_dsi
+    model: JC8012P4A1
+    id: main_display
+    reset_pin: GPIO27
+    auto_clear_enabled: false
+    update_interval: never
+
+# ─── Touchscreen (GSL3680) ────────────────────────────────────────────────────
+# NOTE: after changing rotation from 180→90, verify touch coordinates are
+# correct. gsl3680 does not support swap_xy/mirror — recalibration may be
+# needed if axes appear swapped.
+
+touchscreen:
+  - platform: gsl3680
+    id: touch
+    interrupt_pin: GPIO21
+    reset_pin: GPIO22
+    i2c_id: bus_a
+
+# ─── Clock interval ───────────────────────────────────────────────────────────
+
+interval:
+  - interval: 60s
+    then:
+      - lvgl.label.update:
+          id: lbl_time
+          text: !lambda |-
+            auto t = id(sntp_time).now();
+            if (!t.is_valid()) return std::string("--:--");
+            return str_sprintf("%02d:%02d", t.hour, t.minute);
+
+# ─── Sensors from Home Assistant ──────────────────────────────────────────────
+
+text_sensor:
+  - platform: wifi_info
+    ssid:
+      id: wifi_ssid_info
+      on_value:
+        - lvgl.label.update:
+            id: lbl_wifi_ssid
+            text: !lambda 'return x.empty() ? "--" : x;'
+
+sensor:
+
+  # ── WiFi signal ──
+  - platform: wifi_signal
+    id: wifi_rssi
+    name: "WiFi RSSI"
+    update_interval: 30s
+    on_value:
+      - lvgl.label.update:
+          id: lbl_wifi_signal
+          text: !lambda 'return str_sprintf("%.0f dBm", x);'
+      - if:
+          condition:
+            lambda: 'return x > -60;'
+          then:
+            - lvgl.label.update:
+                id: lbl_wifi_signal
+                text_color: 0x4ade80   # good
+          else:
+            - if:
+                condition:
+                  lambda: 'return x > -75;'
+                then:
+                  - lvgl.label.update:
+                      id: lbl_wifi_signal
+                      text_color: 0xf97316   # caution
+                else:
+                  - lvgl.label.update:
+                      id: lbl_wifi_signal
+                      text_color: 0xef4444   # danger
+
+  # ── Wechselrichter (Lumentree 800) ──
+  - platform: homeassistant
+    id: inv_batt_v
+    entity_id: sensor.lumentree800_lumentree800_battery_voltage
+    on_value:
+      - lvgl.label.update:
+          id: lbl_inv_batt_v
+          text: !lambda 'return str_sprintf("%.1fV", x);'
+
+  - platform: homeassistant
+    id: inv_grid_v
+    entity_id: sensor.lumentree800_lumentree800_grid_voltage
+    on_value:
+      - lvgl.label.update:
+          id: lbl_inv_grid_v
+          text: !lambda 'return str_sprintf("%.0fV", x);'
+
+  - platform: homeassistant
+    id: inv_meter
+    entity_id: sensor.lumentree800_lumentree800_meter
+    on_value:
+      - lvgl.label.update:
+          id: lbl_inv_meter
+          text: !lambda 'return str_sprintf("%.0fW", x);'
+
+  - platform: homeassistant
+    id: inv_output
+    entity_id: sensor.lumentree800_lumentree800_output
+    on_value:
+      - lvgl.label.update:
+          id: lbl_inv_output
+          text: !lambda 'return str_sprintf("%.0fW", x);'
+
+  - platform: homeassistant
+    id: inv_setpoint
+    entity_id: sensor.lumentree800_lumentree800_setpoint
+    on_value:
+      - lvgl.label.update:
+          id: lbl_inv_setpoint
+          text: !lambda 'return str_sprintf("%.0fW", x);'
+
+  - platform: homeassistant
+    id: inv_temp
+    entity_id: sensor.lumentree800_lumentree800_temperature
+    on_value:
+      - lvgl.label.update:
+          id: lbl_inv_temp
+          text: !lambda 'return str_sprintf("%.0f°C", x);'
+
+  # ── Akku ──
+  - platform: homeassistant
+    id: akku_master_pct
+    entity_id: sensor.akku_master
+    on_value:
+      - lvgl.bar.update:
+          id: bar_master
+          value: !lambda 'return (int)x;'
+      - lvgl.label.update:
+          id: lbl_master_pct
+          text: !lambda 'return str_sprintf("%.0f%%", x);'
+      - if:
+          condition:
+            lambda: 'return x > 60;'
+          then:
+            - lvgl.bar.update:
+                id: bar_master
+                indicator:
+                  bg_color: 0x4ade80
+          else:
+            - if:
+                condition:
+                  lambda: 'return x > 20;'
+                then:
+                  - lvgl.bar.update:
+                      id: bar_master
+                      indicator:
+                        bg_color: 0xf97316
+                else:
+                  - lvgl.bar.update:
+                      id: bar_master
+                      indicator:
+                        bg_color: 0xef4444
+
+  - platform: homeassistant
+    id: akku_slave_pct
+    entity_id: sensor.akku_slave
+    on_value:
+      - lvgl.bar.update:
+          id: bar_slave
+          value: !lambda 'return (int)x;'
+      - lvgl.label.update:
+          id: lbl_slave_pct
+          text: !lambda 'return str_sprintf("%.0f%%", x);'
+      - if:
+          condition:
+            lambda: 'return x > 60;'
+          then:
+            - lvgl.bar.update:
+                id: bar_slave
+                indicator:
+                  bg_color: 0x4ade80
+          else:
+            - if:
+                condition:
+                  lambda: 'return x > 20;'
+                then:
+                  - lvgl.bar.update:
+                      id: bar_slave
+                      indicator:
+                        bg_color: 0xf97316
+                else:
+                  - lvgl.bar.update:
+                      id: bar_slave
+                      indicator:
+                        bg_color: 0xef4444
+
+  - platform: homeassistant
+    id: akku_m_t1
+    entity_id: sensor.akku_master_temp_1
+    on_value:
+      - lvgl.label.update:
+          id: lbl_akku_m_t1
+          text: !lambda 'return str_sprintf("%.0f°", x);'
+
+  - platform: homeassistant
+    id: akku_s_t1
+    entity_id: sensor.akku_slave_temp_1
+    on_value:
+      - lvgl.label.update:
+          id: lbl_akku_s_t1
+          text: !lambda 'return str_sprintf("%.0f°", x);'
+
+  - platform: homeassistant
+    id: akku_m_t2
+    entity_id: sensor.akku_master_temp_2
+    on_value:
+      - lvgl.label.update:
+          id: lbl_akku_m_t2
+          text: !lambda 'return str_sprintf("%.0f°", x);'
+
+  - platform: homeassistant
+    id: akku_s_t2
+    entity_id: sensor.akku_slave_temp_2
+    on_value:
+      - lvgl.label.update:
+          id: lbl_akku_s_t2
+          text: !lambda 'return str_sprintf("%.0f°", x);'
+
+  - platform: homeassistant
+    id: akku_m_t3
+    entity_id: sensor.akku_master_temp_3
+    on_value:
+      - lvgl.label.update:
+          id: lbl_akku_m_t3
+          text: !lambda 'return str_sprintf("%.0f°", x);'
+
+  - platform: homeassistant
+    id: akku_s_t3
+    entity_id: sensor.akku_slave_temp_3
+    on_value:
+      - lvgl.label.update:
+          id: lbl_akku_s_t3
+          text: !lambda 'return str_sprintf("%.0f°", x);'
+
+  - platform: homeassistant
+    id: akku_ladestrom
+    entity_id: sensor.akku_ladeleistung
+    on_value:
+      - lvgl.label.update:
+          id: lbl_akku_ladestrom
+          text: !lambda 'return str_sprintf("%.1f A", x);'
+
+  # ── Hinterhaus Zaehler ──
+  - platform: homeassistant
+    id: hh_power
+    entity_id: sensor.wifi_ir_smartmeter_interface_dwze12_currpower
+    on_value:
+      - lvgl.label.update:
+          id: lbl_hh_power
+          text: !lambda 'return str_sprintf("%.0f W", x);'
+
+  - platform: homeassistant
+    id: hh_totalin
+    entity_id: sensor.wifi_ir_smartmeter_interface_dwze12_totalin
+    on_value:
+      - lvgl.label.update:
+          id: lbl_hh_totalin
+          text: !lambda 'return str_sprintf("%.2f kWh", x);'
+
+  - platform: homeassistant
+    id: hh_totalout
+    entity_id: sensor.wifi_ir_smartmeter_interface_dwze12_totalout
+    on_value:
+      - lvgl.label.update:
+          id: lbl_hh_totalout
+          text: !lambda 'return str_sprintf("%.2f kWh", x);'
+
+  # ── 1OG Apt Zaehler ──
+  - platform: homeassistant
+    id: apt_power
+    entity_id: sensor.lesekopf_dwze12_currpower
+    on_value:
+      - lvgl.label.update:
+          id: lbl_apt_power
+          text: !lambda 'return str_sprintf("%.0f W", x);'
+
+  - platform: homeassistant
+    id: apt_totalin
+    entity_id: sensor.lesekopf_dwze12_totalin
+    on_value:
+      - lvgl.label.update:
+          id: lbl_apt_totalin
+          text: !lambda 'return str_sprintf("%.2f kWh", x);'
+
+  - platform: homeassistant
+    id: apt_totalout
+    entity_id: sensor.lesekopf_dwze12_totalout
+    on_value:
+      - lvgl.label.update:
+          id: lbl_apt_totalout
+          text: !lambda 'return str_sprintf("%.2f kWh", x);'
+
+  # ── Solar forecast (Forecast.Solar) ──────────────────────────────────────────
+  - platform: homeassistant
+    id: solar_today
+    entity_id: sensor.energy_production_today
+    on_value:
+      - lvgl.label.update:
+          id: lbl_solar_today
+          text: !lambda 'return str_sprintf("%.1f kWh", x);'
+
+  - platform: homeassistant
+    id: solar_today_remaining
+    entity_id: sensor.energy_production_today_remaining
+    on_value:
+      - lvgl.label.update:
+          id: lbl_solar_remaining
+          text: !lambda 'return str_sprintf("%.1f kWh", x);'
+
+  - platform: homeassistant
+    id: solar_tomorrow
+    entity_id: sensor.energy_production_tomorrow
+    on_value:
+      - lvgl.label.update:
+          id: lbl_solar_tomorrow
+          text: !lambda 'return str_sprintf("%.1f kWh", x);'
+
+# ─── Switch state from Home Assistant ────────────────────────────────────────
+
+binary_sensor:
+  - platform: homeassistant
+    id: bs_heizmatte
+    entity_id: switch.steckdose_heizmatte
+    on_press:
+      - lvgl.switch.update:
+          id: lvgl_sw_heizmatte
+          state:
+            checked: true
+    on_release:
+      - lvgl.switch.update:
+          id: lvgl_sw_heizmatte
+          state:
+            checked: false
+
+# ─── Fonts ────────────────────────────────────────────────────────────────────
+# Montserrat Medium via Google Fonts, 4bpp anti-aliasing.
+# Replaces the built-in 1bpp LVGL bitmap fonts for smoother rendering at ~150 DPI.
+
+font:
+  - file: "gfonts://Montserrat"
+    id: font_14
+    size: 14
+    bpp: 4
+    glyphs: " !%&'()*+,-./0123456789:ABCDEFGHIJKLMNOPQRSTUVWXYZ_abcdefghijklmnopqrstuvwxyz°"
+  - file: "gfonts://Montserrat"
+    id: font_16
+    size: 16
+    bpp: 4
+    glyphs: " !%&'()*+,-./0123456789:ABCDEFGHIJKLMNOPQRSTUVWXYZ_abcdefghijklmnopqrstuvwxyz°"
+  - file: "gfonts://Montserrat"
+    id: font_18
+    size: 18
+    bpp: 4
+    glyphs: " !%&'()*+,-./0123456789:ABCDEFGHIJKLMNOPQRSTUVWXYZ_abcdefghijklmnopqrstuvwxyz°"
+  - file: "gfonts://Montserrat"
+    id: font_20
+    size: 20
+    bpp: 4
+    glyphs: " !%&'()*+,-./0123456789:ABCDEFGHIJKLMNOPQRSTUVWXYZ_abcdefghijklmnopqrstuvwxyz°"
+  - file: "gfonts://Montserrat"
+    id: font_24
+    size: 24
+    bpp: 4
+    glyphs: " !%&'()*+,-./0123456789:ABCDEFGHIJKLMNOPQRSTUVWXYZ_abcdefghijklmnopqrstuvwxyz°"
+  - file: "gfonts://Montserrat"
+    id: font_28
+    size: 28
+    bpp: 4
+    glyphs: " !%&'()*+,-./0123456789:ABCDEFGHIJKLMNOPQRSTUVWXYZ_abcdefghijklmnopqrstuvwxyz°"
+
+# ─── LVGL UI ──────────────────────────────────────────────────────────────────
+# Landscape: physical 800×1280 panel, rotated 90° → logical 1280×800.
+# Layout:
+#   Row 0 (y=0,   h=60):  fixed header bar — title + WiFi + clock
+#   Row 1 (y=60,  h=680): content area — Solar / Zaehler / Steuerung (one visible)
+#   Row 2 (y=740, h=60):  nav bar — Solar | Zaehler | Steuerung tap buttons
+
+lvgl:
+  displays:
+    - main_display
+  touchscreens:
+    - touch
+  rotation: 90
+  color_depth: 16
+  bg_color: 0x000000
+
+  # Palette — 7 semantic colors (tacho / dark-panel style)
+  # bg:         #000000  black      background
+  # card:       #111111  —          near-black surface
+  # border:     #2a2a2a  —          subtle separator
+  # title:      #38bdf8  sky-blue   headings, brand accent
+  # value:      #ffffff  white      primary values
+  # label:      #a1a1aa  gray       secondary / muted text
+  # good:       #4ade80  green      positive, output, strong signal, arc >60%
+  # caution:    #f97316  orange     temperature, medium signal, arc 20-60%
+  # danger:     #ef4444  red        alerts, critical, poor signal, arc <20%
+  # info:       #60a5fa  blue       informational
+
+  style_definitions:
+
+    - id: style_card
+      bg_color: 0x000000
+      bg_opa: COVER
+      bg_grad_dir: NONE
+      border_color: 0x2a2a2a
+      border_width: 1
+      border_opa: COVER
+      radius: 12
+      pad_all: 14
+
+    - id: style_tile
+      bg_color: 0x000000
+      bg_opa: COVER
+      bg_grad_dir: NONE
+      border_color: 0x2a2a2a
+      border_width: 1
+      border_opa: COVER
+      radius: 10
+      pad_all: 10
+
+  pages:
+    - id: page_main
+      bg_color: 0x000000
+      bg_opa: COVER
+      pad_all: 0
+      layout:
+        type: FLEX
+        flex_flow: COLUMN
+
+      widgets:
+
+        # ── Fixed header (always visible, outside tabview) ─────────────────
+        - container:
+            width: 1280
+            height: 60
+            bg_color: 0x000000
+            bg_opa: COVER
+            bg_grad_dir: NONE
+            border_width: 0
+            radius: 0
+            pad_left: 24
+            pad_right: 24
+            layout:
+              type: FLEX
+              flex_flow: ROW
+              flex_align_cross: CENTER
+              flex_align_main: SPACE_BETWEEN
+            widgets:
+              - label:
+                  text: "ELTERN DISPLAY"
+                  text_font: font_20
+                  text_color: 0x38bdf8
+              - container:
+                  bg_opa: TRANSP
+                  width: SIZE_CONTENT
+                  height: SIZE_CONTENT
+                  layout:
+                    type: FLEX
+                    flex_flow: COLUMN
+                    flex_align_cross: CENTER
+                    flex_align_main: CENTER
+                  widgets:
+                    - label:
+                        id: lbl_wifi_ssid
+                        text: "--"
+                        text_font: font_16
+                        text_color: 0xffffff
+                    - label:
+                        id: lbl_wifi_signal
+                        text: "-- dBm"
+                        text_font: font_14
+                        text_color: 0xa1a1aa
+              - label:
+                  id: lbl_time
+                  text: "--:--"
+                  text_font: font_20
+                  text_color: 0xa1a1aa
+
+        # ── Content containers (one visible at a time) ────────────────────
+
+        ##################################################################
+        # Solar (default visible)
+        ##################################################################
+        - container:
+            id: cont_solar
+            width: 1280
+            height: 680
+            bg_opa: TRANSP
+            pad_all: 12
+            layout:
+              type: FLEX
+              flex_flow: ROW
+              flex_align_cross: STRETCH
+
+            widgets:
+
+              # ── LEFT: battery + forecast (516px) ──────────────────────
+              - container:
+                  width: 516
+                  height: 656
+                  bg_opa: TRANSP
+                  pad_all: 10
+                  layout:
+                    type: FLEX
+                    flex_flow: COLUMN
+                    flex_align_main: SPACE_EVENLY
+
+                  widgets:
+
+                    # Master battery bar card
+                    - container:
+                        width: 496
+                        height: 120
+                        styles: style_card
+                        layout:
+                          type: FLEX
+                          flex_flow: COLUMN
+                          flex_align_main: SPACE_EVENLY
+
+                        widgets:
+                          - container:
+                              width: 468
+                              height: SIZE_CONTENT
+                              bg_opa: TRANSP
+                              layout:
+                                type: FLEX
+                                flex_flow: ROW
+                                flex_align_cross: CENTER
+                                flex_align_main: SPACE_BETWEEN
+                              widgets:
+                                - label:
+                                    text: "MASTER"
+                                    text_font: font_14
+                                    text_color: 0xa1a1aa
+                                - label:
+                                    id: lbl_master_pct
+                                    text: "--%"
+                                    text_font: font_20
+                                    text_color: 0xffffff
+
+                          - bar:
+                              id: bar_master
+                              width: 468
+                              height: 22
+                              min_value: 0
+                              max_value: 100
+                              value: 0
+                              bg_color: 0x2a2a2a
+                              bg_opa: COVER
+                              radius: 5
+                              indicator:
+                                bg_color: 0x4ade80
+                                bg_opa: COVER
+                                bg_grad_dir: NONE
+                                radius: 5
+
+                          - container:
+                              width: 468
+                              height: SIZE_CONTENT
+                              bg_opa: TRANSP
+                              layout:
+                                type: FLEX
+                                flex_flow: ROW
+                                flex_align_main: SPACE_BETWEEN
+                              widgets:
+                                - label:
+                                    id: lbl_akku_m_t1
+                                    text: "--°"
+                                    text_font: font_14
+                                    text_color: 0xf97316
+                                - label:
+                                    id: lbl_akku_m_t2
+                                    text: "--°"
+                                    text_font: font_14
+                                    text_color: 0xf97316
+                                - label:
+                                    id: lbl_akku_m_t3
+                                    text: "--°"
+                                    text_font: font_14
+                                    text_color: 0xf97316
+
+                    # Slave battery bar card
+                    - container:
+                        width: 496
+                        height: 120
+                        styles: style_card
+                        layout:
+                          type: FLEX
+                          flex_flow: COLUMN
+                          flex_align_main: SPACE_EVENLY
+
+                        widgets:
+                          - container:
+                              width: 468
+                              height: SIZE_CONTENT
+                              bg_opa: TRANSP
+                              layout:
+                                type: FLEX
+                                flex_flow: ROW
+                                flex_align_cross: CENTER
+                                flex_align_main: SPACE_BETWEEN
+                              widgets:
+                                - label:
+                                    text: "SLAVE"
+                                    text_font: font_14
+                                    text_color: 0xa1a1aa
+                                - label:
+                                    id: lbl_slave_pct
+                                    text: "--%"
+                                    text_font: font_20
+                                    text_color: 0xffffff
+
+                          - bar:
+                              id: bar_slave
+                              width: 468
+                              height: 22
+                              min_value: 0
+                              max_value: 100
+                              value: 0
+                              bg_color: 0x2a2a2a
+                              bg_opa: COVER
+                              radius: 5
+                              indicator:
+                                bg_color: 0x4ade80
+                                bg_opa: COVER
+                                bg_grad_dir: NONE
+                                radius: 5
+
+                          - container:
+                              width: 468
+                              height: SIZE_CONTENT
+                              bg_opa: TRANSP
+                              layout:
+                                type: FLEX
+                                flex_flow: ROW
+                                flex_align_main: SPACE_BETWEEN
+                              widgets:
+                                - label:
+                                    id: lbl_akku_s_t1
+                                    text: "--°"
+                                    text_font: font_14
+                                    text_color: 0xf97316
+                                - label:
+                                    id: lbl_akku_s_t2
+                                    text: "--°"
+                                    text_font: font_14
+                                    text_color: 0xf97316
+                                - label:
+                                    id: lbl_akku_s_t3
+                                    text: "--°"
+                                    text_font: font_14
+                                    text_color: 0xf97316
+
+                    # Solar forecast card
+                    - container:
+                        width: 496
+                        height: 160
+                        styles: style_card
+                        layout:
+                          type: FLEX
+                          flex_flow: COLUMN
+                          flex_align_main: SPACE_EVENLY
+
+                        widgets:
+                          - label:
+                              text: "Solar Prognose"
+                              text_font: font_14
+                              text_color: 0x38bdf8
+
+                          - container:
+                              width: 468
+                              height: SIZE_CONTENT
+                              bg_opa: TRANSP
+                              layout:
+                                type: FLEX
+                                flex_flow: ROW
+                                flex_align_cross: CENTER
+                                flex_align_main: SPACE_BETWEEN
+                              widgets:
+                                - label:
+                                    text: "Heute"
+                                    text_font: font_14
+                                    text_color: 0xa1a1aa
+                                - label:
+                                    id: lbl_solar_today
+                                    text: "--- kWh"
+                                    text_font: font_20
+                                    text_color: 0x4ade80
+
+                          - container:
+                              width: 468
+                              height: SIZE_CONTENT
+                              bg_opa: TRANSP
+                              layout:
+                                type: FLEX
+                                flex_flow: ROW
+                                flex_align_cross: CENTER
+                                flex_align_main: SPACE_BETWEEN
+                              widgets:
+                                - label:
+                                    text: "Rest heute"
+                                    text_font: font_14
+                                    text_color: 0xa1a1aa
+                                - label:
+                                    id: lbl_solar_remaining
+                                    text: "--- kWh"
+                                    text_font: font_20
+                                    text_color: 0xf97316
+
+                          - container:
+                              width: 468
+                              height: SIZE_CONTENT
+                              bg_opa: TRANSP
+                              layout:
+                                type: FLEX
+                                flex_flow: ROW
+                                flex_align_cross: CENTER
+                                flex_align_main: SPACE_BETWEEN
+                              widgets:
+                                - label:
+                                    text: "Morgen"
+                                    text_font: font_14
+                                    text_color: 0xa1a1aa
+                                - label:
+                                    id: lbl_solar_tomorrow
+                                    text: "--- kWh"
+                                    text_font: font_20
+                                    text_color: 0x38bdf8
+
+              # ── RIGHT: inverter section (740px) ───────────────────────
+              - container:
+                  width: 740
+                  height: 656
+                  bg_opa: TRANSP
+                  pad_all: 8
+                  layout:
+                    type: FLEX
+                    flex_flow: COLUMN
+                    flex_align_main: CENTER
+
+                  widgets:
+
+                    # Section label
+                    - label:
+                        text: "Wechselrichter"
+                        text_font: font_16
+                        text_color: 0xa1a1aa
+                        width: 720
+                        pad_bottom: 4
+
+                    # 2×3 tile grid
+                    - container:
+                        width: 724
+                        height: SIZE_CONTENT
+                        bg_opa: TRANSP
+                        layout:
+                          type: FLEX
+                          flex_flow: ROW_WRAP
+                          flex_align_cross: START
+
+                        widgets:
+
+                          - container:
+                              width: 228
+                              height: 120
+                              styles: style_tile
+                              layout:
+                                type: FLEX
+                                flex_flow: COLUMN
+                                flex_align_main: CENTER
+                              widgets:
+                                - label:
+                                    text: "Akku"
+                                    text_color: 0xa1a1aa
+                                    text_font: font_14
+                                - label:
+                                    id: lbl_inv_batt_v
+                                    text: "---"
+                                    text_font: font_28
+                                    text_color: 0xffffff
+
+                          - container:
+                              width: 228
+                              height: 120
+                              styles: style_tile
+                              layout:
+                                type: FLEX
+                                flex_flow: COLUMN
+                                flex_align_main: CENTER
+                              widgets:
+                                - label:
+                                    text: "Netz"
+                                    text_color: 0xa1a1aa
+                                    text_font: font_14
+                                - label:
+                                    id: lbl_inv_grid_v
+                                    text: "---"
+                                    text_font: font_28
+                                    text_color: 0xffffff
+
+                          - container:
+                              width: 228
+                              height: 120
+                              styles: style_tile
+                              layout:
+                                type: FLEX
+                                flex_flow: COLUMN
+                                flex_align_main: CENTER
+                              widgets:
+                                - label:
+                                    text: "Netzbezug"
+                                    text_color: 0xa1a1aa
+                                    text_font: font_14
+                                - label:
+                                    id: lbl_inv_meter
+                                    text: "---"
+                                    text_font: font_28
+                                    text_color: 0xffffff
+
+                          - container:
+                              width: 228
+                              height: 120
+                              styles: style_tile
+                              layout:
+                                type: FLEX
+                                flex_flow: COLUMN
+                                flex_align_main: CENTER
+                              widgets:
+                                - label:
+                                    text: "Leistung"
+                                    text_color: 0xa1a1aa
+                                    text_font: font_14
+                                - label:
+                                    id: lbl_inv_output
+                                    text: "---"
+                                    text_font: font_28
+                                    text_color: 0x4ade80
+
+                          - container:
+                              width: 228
+                              height: 120
+                              styles: style_tile
+                              layout:
+                                type: FLEX
+                                flex_flow: COLUMN
+                                flex_align_main: CENTER
+                              widgets:
+                                - label:
+                                    text: "Max"
+                                    text_color: 0xa1a1aa
+                                    text_font: font_14
+                                - label:
+                                    id: lbl_inv_setpoint
+                                    text: "---"
+                                    text_font: font_28
+                                    text_color: 0xffffff
+
+                          - container:
+                              width: 228
+                              height: 120
+                              styles: style_tile
+                              layout:
+                                type: FLEX
+                                flex_flow: COLUMN
+                                flex_align_main: CENTER
+                              widgets:
+                                - label:
+                                    text: "Temperatur"
+                                    text_color: 0xa1a1aa
+                                    text_font: font_14
+                                - label:
+                                    id: lbl_inv_temp
+                                    text: "---"
+                                    text_font: font_28
+                                    text_color: 0xf97316
+
+                    # Ladestrom row
+                    - container:
+                        width: 724
+                        height: 72
+                        styles: style_card
+                        pad_top: 4
+                        pad_bottom: 4
+                        layout:
+                          type: FLEX
+                          flex_flow: ROW
+                          flex_align_cross: CENTER
+                          flex_align_main: SPACE_BETWEEN
+                        widgets:
+                          - label:
+                              text: "Ladestrom"
+                              text_color: 0xa1a1aa
+                              text_font: font_18
+                          - label:
+                              id: lbl_akku_ladestrom
+                              text: "-- A"
+                              text_font: font_28
+                              text_color: 0x4ade80
+
+        ##################################################################
+        # Zaehler (hidden by default)
+        ##################################################################
+        - container:
+            id: cont_zaehler
+            width: 1280
+            height: 680
+            bg_opa: TRANSP
+            hidden: true
+            pad_all: 16
+            layout:
+              type: FLEX
+              flex_flow: ROW
+              flex_align_cross: STRETCH
+              flex_align_main: SPACE_BETWEEN
+
+            widgets:
+
+              # ── Hinterhaus card ────────────────────────────────────────
+              - container:
+                  width: 608
+                  height: 648
+                  styles: style_card
+                  layout:
+                    type: FLEX
+                    flex_flow: COLUMN
+                    flex_align_main: START
+
+                  widgets:
+                    - label:
+                        text: "Hinterhaus"
+                        text_font: font_20
+                        text_color: 0x38bdf8
+                        pad_bottom: 12
+
+                    - container:
+                        width: 570
+                        height: 80
+                        bg_opa: TRANSP
+                        layout:
+                          type: FLEX
+                          flex_flow: ROW
+                          flex_align_cross: CENTER
+                          flex_align_main: SPACE_BETWEEN
+                        widgets:
+                          - label:
+                              text: "Bezug aktuell"
+                              text_color: 0xa1a1aa
+                              text_font: font_18
+                          - label:
+                              id: lbl_hh_power
+                              text: "--- W"
+                              text_font: font_28
+                              text_color: 0xffffff
+
+                    - container:
+                        width: 570
+                        height: 80
+                        bg_opa: TRANSP
+                        layout:
+                          type: FLEX
+                          flex_flow: ROW
+                          flex_align_cross: CENTER
+                          flex_align_main: SPACE_BETWEEN
+                        widgets:
+                          - label:
+                              text: "Bezug gesamt"
+                              text_color: 0xa1a1aa
+                              text_font: font_18
+                          - label:
+                              id: lbl_hh_totalin
+                              text: "--- kWh"
+                              text_font: font_28
+                              text_color: 0xffffff
+
+                    - container:
+                        width: 570
+                        height: 80
+                        bg_opa: TRANSP
+                        layout:
+                          type: FLEX
+                          flex_flow: ROW
+                          flex_align_cross: CENTER
+                          flex_align_main: SPACE_BETWEEN
+                        widgets:
+                          - label:
+                              text: "Einspeisung"
+                              text_color: 0xa1a1aa
+                              text_font: font_18
+                          - label:
+                              id: lbl_hh_totalout
+                              text: "--- kWh"
+                              text_font: font_28
+                              text_color: 0x4ade80
+
+              # ── 1OG Apt card ───────────────────────────────────────────
+              - container:
+                  width: 608
+                  height: 648
+                  styles: style_card
+                  layout:
+                    type: FLEX
+                    flex_flow: COLUMN
+                    flex_align_main: START
+
+                  widgets:
+                    - label:
+                        text: "1OG Apt"
+                        text_font: font_20
+                        text_color: 0x38bdf8
+                        pad_bottom: 12
+
+                    - container:
+                        width: 570
+                        height: 80
+                        bg_opa: TRANSP
+                        layout:
+                          type: FLEX
+                          flex_flow: ROW
+                          flex_align_cross: CENTER
+                          flex_align_main: SPACE_BETWEEN
+                        widgets:
+                          - label:
+                              text: "Bezug aktuell"
+                              text_color: 0xa1a1aa
+                              text_font: font_18
+                          - label:
+                              id: lbl_apt_power
+                              text: "--- W"
+                              text_font: font_28
+                              text_color: 0xffffff
+
+                    - container:
+                        width: 570
+                        height: 80
+                        bg_opa: TRANSP
+                        layout:
+                          type: FLEX
+                          flex_flow: ROW
+                          flex_align_cross: CENTER
+                          flex_align_main: SPACE_BETWEEN
+                        widgets:
+                          - label:
+                              text: "Bezug gesamt"
+                              text_color: 0xa1a1aa
+                              text_font: font_18
+                          - label:
+                              id: lbl_apt_totalin
+                              text: "--- kWh"
+                              text_font: font_28
+                              text_color: 0xffffff
+
+                    - container:
+                        width: 570
+                        height: 80
+                        bg_opa: TRANSP
+                        layout:
+                          type: FLEX
+                          flex_flow: ROW
+                          flex_align_cross: CENTER
+                          flex_align_main: SPACE_BETWEEN
+                        widgets:
+                          - label:
+                              text: "Einspeisung"
+                              text_color: 0xa1a1aa
+                              text_font: font_18
+                          - label:
+                              id: lbl_apt_totalout
+                              text: "--- kWh"
+                              text_font: font_28
+                              text_color: 0x4ade80
+
+        ##################################################################
+        # Steuerung (hidden by default)
+        ##################################################################
+        - container:
+            id: cont_steuerung
+            width: 1280
+            height: 680
+            bg_opa: TRANSP
+            hidden: true
+            pad_all: 24
+            layout:
+              type: FLEX
+              flex_flow: COLUMN
+              flex_align_cross: CENTER
+
+            widgets:
+
+              # Heizmatte switch
+              - container:
+                  width: 700
+                  height: 88
+                  styles: style_card
+                  layout:
+                    type: FLEX
+                    flex_flow: ROW
+                    flex_align_cross: CENTER
+                    flex_align_main: SPACE_BETWEEN
+                  widgets:
+                    - label:
+                        text: "Heizmatte"
+                        text_color: 0xffffff
+                        text_font: font_24
+                    - switch:
+                        id: lvgl_sw_heizmatte
+                        on_value:
+                          then:
+                            - if:
+                                condition:
+                                  lambda: 'return x;'
+                                then:
+                                  - homeassistant.service:
+                                      service: switch.turn_on
+                                      data:
+                                        entity_id: switch.steckdose_heizmatte
+                                else:
+                                  - homeassistant.service:
+                                      service: switch.turn_off
+                                      data:
+                                        entity_id: switch.steckdose_heizmatte
+
+        # ── Nav bar ────────────────────────────────────────────────────────
+        - container:
+            width: 1280
+            height: 60
+            bg_color: 0x000000
+            bg_opa: COVER
+            bg_grad_dir: NONE
+            border_width: 0
+            radius: 0
+            layout:
+              type: FLEX
+              flex_flow: ROW
+              flex_align_cross: CENTER
+              flex_align_main: SPACE_EVENLY
+            widgets:
+
+              - button:
+                  id: btn_nav_solar
+                  width: 427
+                  height: 60
+                  bg_opa: TRANSP
+                  border_width: 0
+                  radius: 0
+                  on_click:
+                    - lvgl.widget.show:
+                        id: cont_solar
+                    - lvgl.widget.hide:
+                        id: cont_zaehler
+                    - lvgl.widget.hide:
+                        id: cont_steuerung
+                    - lvgl.label.update:
+                        id: lbl_nav_solar
+                        text_color: 0x38bdf8
+                    - lvgl.label.update:
+                        id: lbl_nav_zaehler
+                        text_color: 0xa1a1aa
+                    - lvgl.label.update:
+                        id: lbl_nav_steuerung
+                        text_color: 0xa1a1aa
+                  widgets:
+                    - label:
+                        id: lbl_nav_solar
+                        text: "Solar"
+                        text_font: font_18
+                        text_color: 0x38bdf8
+                        align: CENTER
+
+              - button:
+                  id: btn_nav_zaehler
+                  width: 427
+                  height: 60
+                  bg_opa: TRANSP
+                  border_width: 0
+                  radius: 0
+                  on_click:
+                    - lvgl.widget.hide:
+                        id: cont_solar
+                    - lvgl.widget.show:
+                        id: cont_zaehler
+                    - lvgl.widget.hide:
+                        id: cont_steuerung
+                    - lvgl.label.update:
+                        id: lbl_nav_solar
+                        text_color: 0xa1a1aa
+                    - lvgl.label.update:
+                        id: lbl_nav_zaehler
+                        text_color: 0x38bdf8
+                    - lvgl.label.update:
+                        id: lbl_nav_steuerung
+                        text_color: 0xa1a1aa
+                  widgets:
+                    - label:
+                        id: lbl_nav_zaehler
+                        text: "Zaehler"
+                        text_font: font_18
+                        text_color: 0xa1a1aa
+                        align: CENTER
+
+              - button:
+                  id: btn_nav_steuerung
+                  width: 426
+                  height: 60
+                  bg_opa: TRANSP
+                  border_width: 0
+                  radius: 0
+                  on_click:
+                    - lvgl.widget.hide:
+                        id: cont_solar
+                    - lvgl.widget.hide:
+                        id: cont_zaehler
+                    - lvgl.widget.show:
+                        id: cont_steuerung
+                    - lvgl.label.update:
+                        id: lbl_nav_solar
+                        text_color: 0xa1a1aa
+                    - lvgl.label.update:
+                        id: lbl_nav_zaehler
+                        text_color: 0xa1a1aa
+                    - lvgl.label.update:
+                        id: lbl_nav_steuerung
+                        text_color: 0x38bdf8
+                  widgets:
+                    - label:
+                        id: lbl_nav_steuerung
+                        text: "Steuerung"
+                        text_font: font_18
+                        text_color: 0xa1a1aa
+                        align: CENTER
