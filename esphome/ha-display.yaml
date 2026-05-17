@@ -437,59 +437,61 @@ lvgl:
                           - label: {text: "Temperatur", text_font: font_sm, text_color: 0x9ca3af}
                           - label: {id: lbl_inv_temp, text: "---", text_font: font_lg, text_color: 0xf59e0b}
 
-              # 2×3 tile grid
+              # Solar Status
               - obj:
+                  styles: card
                   width: 100%
-                  height: 280
-                  bg_opa: TRANSP
-                  border_width: 0
-                  pad_all: 0
+                  height: 220
                   layout:
                     type: flex
-                    flex_flow: row_wrap
-                    flex_align_main: space_between
+                    flex_flow: column
+                    flex_align_main: space_evenly
 
                   widgets:
+                    - label:
+                        text: "Solar Status"
+                        text_font: font_md
+                        text_color: 0x03a9f4
                     - obj:
-                        styles: card
-                        width: 278
-                        height: 128
-                        layout: {type: flex, flex_flow: column, flex_align_cross: center, flex_align_main: center}
-                        widgets:
-                          - label: {text: "Akku", text_font: font_sm, text_color: 0x9ca3af}
-                          - label: {id: lbl_inv_batt_v, text: "---", text_font: font_md, text_color: 0xe5e7eb}
-                    - obj:
-                        styles: card
-                        width: 278
-                        height: 128
-                        layout: {type: flex, flex_flow: column, flex_align_cross: center, flex_align_main: center}
-                        widgets:
-                          - label: {text: "Netz", text_font: font_sm, text_color: 0x9ca3af}
-                          - label: {id: lbl_inv_grid_v, text: "---", text_font: font_md, text_color: 0xe5e7eb}
-                    - obj:
-                        styles: card
-                        width: 278
-                        height: 128
-                        layout: {type: flex, flex_flow: column, flex_align_cross: center, flex_align_main: center}
-                        widgets:
-                          - label: {text: "Netzbezug", text_font: font_sm, text_color: 0x9ca3af}
-                          - label: {id: lbl_inv_meter, text: "---", text_font: font_md, text_color: 0xe5e7eb}
-                    - obj:
-                        styles: card
-                        width: 278
-                        height: 128
-                        layout: {type: flex, flex_flow: column, flex_align_cross: center, flex_align_main: center}
+                        width: 100%
+                        height: SIZE_CONTENT
+                        bg_opa: TRANSP
+                        border_width: 0
+                        pad_all: 0
+                        layout: {type: flex, flex_flow: row, flex_align_main: space_between}
                         widgets:
                           - label: {text: "PV Leistung", text_font: font_sm, text_color: 0x9ca3af}
-                          - label: {id: lbl_pv_leistung, text: "--- W", text_font: font_md, text_color: 0xf59e0b}
+                          - label: {id: lbl_pv_leistung, text: "--- W", text_font: font_sm, text_color: 0xf59e0b}
                     - obj:
-                        styles: card
-                        width: 278
-                        height: 128
-                        layout: {type: flex, flex_flow: column, flex_align_cross: center, flex_align_main: center}
+                        width: 100%
+                        height: SIZE_CONTENT
+                        bg_opa: TRANSP
+                        border_width: 0
+                        pad_all: 0
+                        layout: {type: flex, flex_flow: row, flex_align_main: space_between}
+                        widgets:
+                          - label: {text: "Ertrag heute", text_font: font_sm, text_color: 0x9ca3af}
+                          - label: {id: lbl_ertrag_heute, text: "--- kWh", text_font: font_sm, text_color: 0x22c55e}
+                    - obj:
+                        width: 100%
+                        height: SIZE_CONTENT
+                        bg_opa: TRANSP
+                        border_width: 0
+                        pad_all: 0
+                        layout: {type: flex, flex_flow: row, flex_align_main: space_between}
                         widgets:
                           - label: {text: "Ladestrom", text_font: font_sm, text_color: 0x9ca3af}
-                          - label: {id: lbl_ladestrom, text: "--- A", text_font: font_md, text_color: 0x22c55e}
+                          - label: {id: lbl_ladestrom, text: "--- A", text_font: font_sm, text_color: 0x22c55e}
+                    - obj:
+                        width: 100%
+                        height: SIZE_CONTENT
+                        bg_opa: TRANSP
+                        border_width: 0
+                        pad_all: 0
+                        layout: {type: flex, flex_flow: row, flex_align_main: space_between}
+                        widgets:
+                          - label: {text: "Max. Leistung heute", text_font: font_sm, text_color: 0x9ca3af}
+                          - label: {id: lbl_max_pv_heute, text: "---", text_font: font_sm, text_color: 0xe5e7eb}
 
               # Solar forecast
               - obj:
@@ -725,30 +727,6 @@ sensor:
           text: !lambda 'return str_sprintf("%.0f W", x);'
 
   - platform: homeassistant
-    id: inv_batt_v
-    entity_id: sensor.lumentree800_lumentree800_battery_voltage
-    on_value:
-      - lvgl.label.update:
-          id: lbl_inv_batt_v
-          text: !lambda 'return str_sprintf("%.1f V", x);'
-
-  - platform: homeassistant
-    id: inv_grid_v
-    entity_id: sensor.lumentree800_lumentree800_grid_voltage
-    on_value:
-      - lvgl.label.update:
-          id: lbl_inv_grid_v
-          text: !lambda 'return str_sprintf("%.0f V", x);'
-
-  - platform: homeassistant
-    id: inv_meter
-    entity_id: sensor.lumentree800_lumentree800_meter
-    on_value:
-      - lvgl.label.update:
-          id: lbl_inv_meter
-          text: !lambda 'return str_sprintf("%.0f W", x);'
-
-  - platform: homeassistant
     id: inv_setpoint
     entity_id: sensor.lumentree800_lumentree800_setpoint
     on_value:
@@ -873,6 +851,14 @@ sensor:
       - lvgl.label.update:
           id: lbl_pv_leistung
           text: !lambda 'return str_sprintf("%.0f W", x);'
+
+  - platform: homeassistant
+    id: mppt_ertrag_heute
+    entity_id: sensor.mppt_ertrag_heute
+    on_value:
+      - lvgl.label.update:
+          id: lbl_ertrag_heute
+          text: !lambda 'return str_sprintf("%.2f kWh", x / 1000.0f);'
 
   # Hinterhaus
   - platform: homeassistant
