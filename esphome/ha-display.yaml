@@ -112,10 +112,7 @@ time:
         minutes: 1
         seconds: 0
         then:
-          - globals.set:
-              id: g_hh_totalin_start
-              value: !lambda 'return id(hh_totalin).state;'
-          - lvgl.label.update: {id: lbl_zaehler_hh_heute, text: "0.00 kWh"}
+
 
 globals:
   - id: g_akku_m_min
@@ -130,9 +127,6 @@ globals:
   - id: g_akku_s_max
     type: float
     initial_value: '-999.0'
-  - id: g_hh_totalin_start
-    type: float
-    initial_value: '-1.0'
   - id: g_inv_output_max
     type: float
     initial_value: '-1.0'
@@ -1341,7 +1335,7 @@ sensor:
 
   - platform: homeassistant
     id: inv_setpoint
-    entity_id: sensor.lumentree800_lumentree800_setpoint
+    entity_id: sensor.lumentree_power_limit
     on_value:
       - lvgl.label.update:
           id: lbl_inv_setpoint
@@ -1649,11 +1643,6 @@ sensor:
       - lvgl.label.update:
           id: lbl_zaehler_hh_bezug
           text: !lambda 'return str_sprintf("%.2f kWh", x);'
-      - lvgl.label.update:
-          id: lbl_zaehler_hh_heute
-          text: !lambda |-
-            if (id(g_hh_totalin_start) < 0) return std::string("---");
-            return str_sprintf("%.2f kWh", x - id(g_hh_totalin_start));
 
   - platform: homeassistant
     id: hh_totalout
@@ -1664,6 +1653,14 @@ sensor:
           text: !lambda 'return str_sprintf("%.2f kWh", x);'
       - lvgl.label.update:
           id: lbl_zaehler_hh_einsp
+          text: !lambda 'return str_sprintf("%.2f kWh", x);'
+
+  - platform: homeassistant
+    id: hh_bezug_heute
+    entity_id: sensor.lesekopf_hinterhaus_hinterhaus_bezug_heute
+    on_value:
+      - lvgl.label.update:
+          id: lbl_zaehler_hh_heute
           text: !lambda 'return str_sprintf("%.2f kWh", x);'
 
   # 1OG Apt
