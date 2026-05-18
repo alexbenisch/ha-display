@@ -7,21 +7,21 @@
 substitutions:
   name: "ha-display"
   friendly_name: "Eltern Display"
-  button_on_color:      "0x03a9f4"
+  button_on_color: "0x03a9f4"
   button_control_color: "0x1c2535"
-  button_text_color:    "0xe5e7eb"
-  button_width:         "410px"
-  button_height:        "200px"
-  radius:               "12px"
-  icon_font:            icon_font
-  icon_solar:   "\U000F140B"
+  button_text_color: "0xe5e7eb"
+  button_width: "410px"
+  button_height: "200px"
+  radius: "12px"
+  icon_font: icon_font
+  icon_solar: "\U000F140B"
   icon_battery: "\U000F008E"
-  icon_power:   "\U000F0425"
-  icon_thermo:  "\U000F050F"
-  icon_wifi:    "\U000F05A9"
-  icon_meter:   "\U000F06A5"
-  icon_bolt:    "\U000F0E63"
-  icon_plug:    "\U000F0335"
+  icon_power: "\U000F0425"
+  icon_thermo: "\U000F050F"
+  icon_wifi: "\U000F05A9"
+  icon_meter: "\U000F06A5"
+  icon_bolt: "\U000F0E63"
+  icon_plug: "\U000F0335"
 
 # ─── Identity ─────────────────────────────────────────────────────────────────
 
@@ -90,10 +90,52 @@ time:
     on_time_sync:
       - script.execute: time_update
     on_time:
-      - minutes: '*'
+      - minutes: "*"
         seconds: 0
         then:
           - script.execute: time_update
+      - hours: 0
+        minutes: 0
+        seconds: 0
+        then:
+          - globals.set: {id: g_akku_m_min, value: "999.0"}
+          - globals.set: {id: g_akku_m_max, value: "-999.0"}
+          - globals.set: {id: g_akku_s_min, value: "999.0"}
+          - globals.set: {id: g_akku_s_max, value: "-999.0"}
+          - globals.set: {id: g_inv_output_max, value: "-1.0"}
+          - lvgl.label.update: {id: lbl_akku_m_min, text: "---"}
+          - lvgl.label.update: {id: lbl_akku_m_max, text: "---"}
+          - lvgl.label.update: {id: lbl_akku_s_min, text: "---"}
+          - lvgl.label.update: {id: lbl_akku_s_max, text: "---"}
+          - lvgl.label.update: {id: lbl_max_pv_heute, text: "---"}
+      - hours: 0
+        minutes: 1
+        seconds: 0
+        then:
+          - globals.set:
+              id: g_hh_totalin_start
+              value: !lambda 'return id(hh_totalin).state;'
+          - lvgl.label.update: {id: lbl_zaehler_hh_heute, text: "0.00 kWh"}
+
+globals:
+  - id: g_akku_m_min
+    type: float
+    initial_value: '999.0'
+  - id: g_akku_m_max
+    type: float
+    initial_value: '-999.0'
+  - id: g_akku_s_min
+    type: float
+    initial_value: '999.0'
+  - id: g_akku_s_max
+    type: float
+    initial_value: '-999.0'
+  - id: g_hh_totalin_start
+    type: float
+    initial_value: '-1.0'
+  - id: g_inv_output_max
+    type: float
+    initial_value: '-1.0'
 
 script:
   - id: time_update
@@ -187,23 +229,23 @@ font:
     size: 72
     bpp: 4
     glyphs: "0123456789.,:-+°% WVAkwhC"
-  - file: 'https://github.com/Templarian/MaterialDesign-Webfont/raw/v7.4.47/fonts/materialdesignicons-webfont.ttf'
+  - file: "https://github.com/Templarian/MaterialDesign-Webfont/raw/v7.4.47/fonts/materialdesignicons-webfont.ttf"
     id: icon_font
     size: 48
     bpp: 4
     glyphs:
-      - "\U000F0425"  # mdi-power
-      - "\U000F008E"  # mdi-battery
-      - "\U000F006E"  # mdi-battery-high (alias)
-      - "\U000F05A9"  # mdi-wifi
-      - "\U000F0141"  # mdi-chevron-left
-      - "\U000F0142"  # mdi-chevron-right
-      - "\U000F050F"  # mdi-thermometer
-      - "\U000F140B"  # mdi-solar-power-variant
-      - "\U000F0D43"  # mdi-air-filter (inverter)
-      - "\U000F0E63"  # mdi-lightning-bolt
-      - "\U000F06A5"  # mdi-gauge
-      - "\U000F0335"  # mdi-lightbulb
+      - "\U000F0425" # mdi-power
+      - "\U000F008E" # mdi-battery
+      - "\U000F006E" # mdi-battery-high (alias)
+      - "\U000F05A9" # mdi-wifi
+      - "\U000F0141" # mdi-chevron-left
+      - "\U000F0142" # mdi-chevron-right
+      - "\U000F050F" # mdi-thermometer
+      - "\U000F140B" # mdi-solar-power-variant
+      - "\U000F0D43" # mdi-air-filter (inverter)
+      - "\U000F0E63" # mdi-lightning-bolt
+      - "\U000F06A5" # mdi-gauge
+      - "\U000F0335" # mdi-lightbulb
 
 # ─── LVGL theme ───────────────────────────────────────────────────────────────
 
@@ -269,7 +311,6 @@ lvgl:
 
   # ── Pages ─────────────────────────────────────────────────────────────────
   pages:
-
     ##########################################################################
     # Page 1: Solar
     ##########################################################################
@@ -283,13 +324,12 @@ lvgl:
       layout:
         type: flex
         flex_flow: row
-        flex_align_cross: stretch
+        flex_align_cross: start
 
       widgets:
-
         # Left column — Akku arcs
         - obj:
-            width: 380
+            width: 240
             height: SIZE_CONTENT
             bg_opa: TRANSP
             border_width: 0
@@ -297,14 +337,14 @@ lvgl:
             layout:
               type: flex
               flex_flow: column
-              flex_align_main: space_evenly
+              flex_align_main: start
               flex_align_cross: center
 
             widgets:
               # Master arc
               - obj:
                   styles: card
-                  width: 360
+                  width: 100%
                   height: 300
                   layout:
                     type: flex
@@ -336,16 +376,10 @@ lvgl:
                               text_font: font_md
                               text_color: 0xe5e7eb
                               align: center
-                    - label:
-                        id: lbl_master_temp
-                        text: "--°C"
-                        text_font: font_sm
-                        text_color: 0xf59e0b
-
               # Slave arc
               - obj:
                   styles: card
-                  width: 360
+                  width: 100%
                   height: 300
                   layout:
                     type: flex
@@ -377,15 +411,9 @@ lvgl:
                               text_font: font_md
                               text_color: 0xe5e7eb
                               align: center
-                    - label:
-                        id: lbl_slave_temp
-                        text: "--°C"
-                        text_font: font_sm
-                        text_color: 0xf59e0b
-
-        # Right column — inverter + forecast
+        # Middle column — Akku temperature tiles
         - obj:
-            width: 876
+            width: 336
             height: SIZE_CONTENT
             bg_opa: TRANSP
             border_width: 0
@@ -399,49 +427,386 @@ lvgl:
               flex_align_main: space_between
 
             widgets:
-
-              # Hero row: 3 tiles
               - obj:
+                  styles: card
                   width: 100%
-                  height: 140
-                  bg_opa: TRANSP
-                  border_width: 0
-                  pad_all: 0
+                  height: SIZE_CONTENT
+                  layout:
+                    {
+                      type: flex,
+                      flex_flow: column,
+                      flex_align_main: space_evenly,
+                    }
+                  widgets:
+                    - label:
+                        {
+                          text: "Akku Master",
+                          text_font: font_sm,
+                          text_color: 0x03a9f4,
+                        }
+                    - obj:
+                        width: 100%
+                        height: SIZE_CONTENT
+                        bg_opa: TRANSP
+                        border_width: 0
+                        pad_all: 0
+                        layout:
+                          {
+                            type: flex,
+                            flex_flow: row,
+                            flex_align_main: space_between,
+                          }
+                        widgets:
+                          - label:
+                              {
+                                text: "Aktuell",
+                                text_font: font_sm,
+                                text_color: 0x9ca3af,
+                              }
+                          - label:
+                              {
+                                id: lbl_akku_m_akt,
+                                text: "---",
+                                text_font: font_sm,
+                                text_color: 0xe5e7eb,
+                              }
+                    - obj:
+                        width: 100%
+                        height: SIZE_CONTENT
+                        bg_opa: TRANSP
+                        border_width: 0
+                        pad_all: 0
+                        layout:
+                          {
+                            type: flex,
+                            flex_flow: row,
+                            flex_align_main: space_between,
+                          }
+                        widgets:
+                          - label:
+                              {
+                                text: "Min",
+                                text_font: font_sm,
+                                text_color: 0x9ca3af,
+                              }
+                          - label:
+                              {
+                                id: lbl_akku_m_min,
+                                text: "---",
+                                text_font: font_sm,
+                                text_color: 0x22c55e,
+                              }
+                    - obj:
+                        width: 100%
+                        height: SIZE_CONTENT
+                        bg_opa: TRANSP
+                        border_width: 0
+                        pad_all: 0
+                        layout:
+                          {
+                            type: flex,
+                            flex_flow: row,
+                            flex_align_main: space_between,
+                          }
+                        widgets:
+                          - label:
+                              {
+                                text: "Max",
+                                text_font: font_sm,
+                                text_color: 0x9ca3af,
+                              }
+                          - label:
+                              {
+                                id: lbl_akku_m_max,
+                                text: "---",
+                                text_font: font_sm,
+                                text_color: 0xef4444,
+                              }
+
+              - obj:
+                  styles: card
+                  width: 100%
+                  height: SIZE_CONTENT
+                  layout:
+                    {
+                      type: flex,
+                      flex_flow: column,
+                      flex_align_main: space_evenly,
+                    }
+                  widgets:
+                    - label:
+                        {
+                          text: "Akku Slave",
+                          text_font: font_sm,
+                          text_color: 0x03a9f4,
+                        }
+                    - obj:
+                        width: 100%
+                        height: SIZE_CONTENT
+                        bg_opa: TRANSP
+                        border_width: 0
+                        pad_all: 0
+                        layout:
+                          {
+                            type: flex,
+                            flex_flow: row,
+                            flex_align_main: space_between,
+                          }
+                        widgets:
+                          - label:
+                              {
+                                text: "Aktuell",
+                                text_font: font_sm,
+                                text_color: 0x9ca3af,
+                              }
+                          - label:
+                              {
+                                id: lbl_akku_s_akt,
+                                text: "---",
+                                text_font: font_sm,
+                                text_color: 0xe5e7eb,
+                              }
+                    - obj:
+                        width: 100%
+                        height: SIZE_CONTENT
+                        bg_opa: TRANSP
+                        border_width: 0
+                        pad_all: 0
+                        layout:
+                          {
+                            type: flex,
+                            flex_flow: row,
+                            flex_align_main: space_between,
+                          }
+                        widgets:
+                          - label:
+                              {
+                                text: "Min",
+                                text_font: font_sm,
+                                text_color: 0x9ca3af,
+                              }
+                          - label:
+                              {
+                                id: lbl_akku_s_min,
+                                text: "---",
+                                text_font: font_sm,
+                                text_color: 0x22c55e,
+                              }
+                    - obj:
+                        width: 100%
+                        height: SIZE_CONTENT
+                        bg_opa: TRANSP
+                        border_width: 0
+                        pad_all: 0
+                        layout:
+                          {
+                            type: flex,
+                            flex_flow: row,
+                            flex_align_main: space_between,
+                          }
+                        widgets:
+                          - label:
+                              {
+                                text: "Max",
+                                text_font: font_sm,
+                                text_color: 0x9ca3af,
+                              }
+                          - label:
+                              {
+                                id: lbl_akku_s_max,
+                                text: "---",
+                                text_font: font_sm,
+                                text_color: 0xef4444,
+                              }
+
+              - obj:
+                  styles: card
+                  width: 100%
+                  height: SIZE_CONTENT
+                  layout: {type: flex, flex_flow: column, flex_align_main: space_evenly}
+                  widgets:
+                    - label: {text: "Zähler", text_font: font_md, text_color: 0x03a9f4}
+                    - obj:
+                        width: 100%
+                        height: SIZE_CONTENT
+                        bg_opa: TRANSP
+                        border_width: 0
+                        pad_all: 0
+                        layout: {type: flex, flex_flow: row, flex_align_main: space_between}
+                        widgets:
+                          - label: {text: "HH heute", text_font: font_sm, text_color: 0x9ca3af}
+                          - label: {id: lbl_zaehler_hh_heute, text: "---", text_font: font_sm, text_color: 0x22c55e}
+                    - obj:
+                        width: 100%
+                        height: SIZE_CONTENT
+                        bg_opa: TRANSP
+                        border_width: 0
+                        pad_all: 0
+                        layout: {type: flex, flex_flow: row, flex_align_main: space_between}
+                        widgets:
+                          - label: {text: "HH jetzt", text_font: font_sm, text_color: 0x9ca3af}
+                          - label: {id: lbl_zaehler_hh_jetzt, text: "--- W", text_font: font_sm, text_color: 0xe5e7eb}
+                    - obj:
+                        width: 100%
+                        height: SIZE_CONTENT
+                        bg_opa: TRANSP
+                        border_width: 0
+                        pad_all: 0
+                        layout: {type: flex, flex_flow: row, flex_align_main: space_between}
+                        widgets:
+                          - label: {text: "HH Bezug", text_font: font_sm, text_color: 0x9ca3af}
+                          - label: {id: lbl_zaehler_hh_bezug, text: "--- kWh", text_font: font_sm, text_color: 0xe5e7eb}
+                    - obj:
+                        width: 100%
+                        height: SIZE_CONTENT
+                        bg_opa: TRANSP
+                        border_width: 0
+                        pad_all: 0
+                        layout: {type: flex, flex_flow: row, flex_align_main: space_between}
+                        widgets:
+                          - label: {text: "HH Einspeis.", text_font: font_sm, text_color: 0x9ca3af}
+                          - label: {id: lbl_zaehler_hh_einsp, text: "--- kWh", text_font: font_sm, text_color: 0x22c55e}
+
+        # Right column — Wechselrichter + solar data
+        - obj:
+            width: 500
+            height: SIZE_CONTENT
+            bg_opa: TRANSP
+            border_width: 0
+            pad_left: 12
+            pad_right: 0
+            pad_top: 0
+            pad_bottom: 0
+            layout:
+              type: flex
+              flex_flow: column
+              flex_align_main: space_between
+
+            widgets:
+              # Wechselrichter
+              - obj:
+                  styles: card
+                  width: 100%
+                  height: 210
                   layout:
                     type: flex
-                    flex_flow: row
-                    flex_align_main: space_between
+                    flex_flow: column
+                    flex_align_main: space_evenly
                   widgets:
+                    - label:
+                        text: "Wechselrichter"
+                        text_font: font_md
+                        text_color: 0x03a9f4
                     - obj:
-                        styles: card
-                        width: 274
-                        height: 140
-                        layout: {type: flex, flex_flow: column, flex_align_cross: center, flex_align_main: center}
+                        width: 100%
+                        height: SIZE_CONTENT
+                        bg_opa: TRANSP
+                        border_width: 0
+                        pad_all: 0
+                        layout:
+                          {
+                            type: flex,
+                            flex_flow: row,
+                            flex_align_main: space_between,
+                          }
                         widgets:
-                          - label: {text: "Leistung", text_font: font_sm, text_color: 0x9ca3af}
-                          - label: {id: lbl_inv_output, text: "--- W", text_font: font_lg, text_color: 0x22c55e}
+                          - label:
+                              {
+                                text: "Aktuelle Leistung",
+                                text_font: font_sm,
+                                text_color: 0x9ca3af,
+                              }
+                          - label:
+                              {
+                                id: lbl_inv_output,
+                                text: "--- W",
+                                text_font: font_sm,
+                                text_color: 0x22c55e,
+                              }
                     - obj:
-                        styles: card
-                        width: 274
-                        height: 140
-                        layout: {type: flex, flex_flow: column, flex_align_cross: center, flex_align_main: center}
+                        width: 100%
+                        height: SIZE_CONTENT
+                        bg_opa: TRANSP
+                        border_width: 0
+                        pad_all: 0
+                        layout:
+                          {
+                            type: flex,
+                            flex_flow: row,
+                            flex_align_main: space_between,
+                          }
                         widgets:
-                          - label: {text: "Max Wert", text_font: font_sm, text_color: 0x9ca3af}
-                          - label: {id: lbl_inv_setpoint, text: "--- W", text_font: font_lg, text_color: 0xe5e7eb}
+                          - label:
+                              {
+                                text: "Max. Leistung",
+                                text_font: font_sm,
+                                text_color: 0x9ca3af,
+                              }
+                          - label:
+                              {
+                                id: lbl_inv_setpoint,
+                                text: "--- W",
+                                text_font: font_sm,
+                                text_color: 0xe5e7eb,
+                              }
                     - obj:
-                        styles: card
-                        width: 274
-                        height: 140
-                        layout: {type: flex, flex_flow: column, flex_align_cross: center, flex_align_main: center}
+                        width: 100%
+                        height: SIZE_CONTENT
+                        bg_opa: TRANSP
+                        border_width: 0
+                        pad_all: 0
+                        layout:
+                          {
+                            type: flex,
+                            flex_flow: row,
+                            flex_align_main: space_between,
+                          }
                         widgets:
-                          - label: {text: "Temperatur", text_font: font_sm, text_color: 0x9ca3af}
-                          - label: {id: lbl_inv_temp, text: "---", text_font: font_lg, text_color: 0xf59e0b}
+                          - label:
+                              {
+                                text: "Leistung heute",
+                                text_font: font_sm,
+                                text_color: 0x9ca3af,
+                              }
+                          - label:
+                              {
+                                id: lbl_inv_leistung_heute,
+                                text: "---",
+                                text_font: font_sm,
+                                text_color: 0xe5e7eb,
+                              }
+                    - obj:
+                        width: 100%
+                        height: SIZE_CONTENT
+                        bg_opa: TRANSP
+                        border_width: 0
+                        pad_all: 0
+                        layout:
+                          {
+                            type: flex,
+                            flex_flow: row,
+                            flex_align_main: space_between,
+                          }
+                        widgets:
+                          - label:
+                              {
+                                text: "Temperatur",
+                                text_font: font_sm,
+                                text_color: 0x9ca3af,
+                              }
+                          - label:
+                              {
+                                id: lbl_inv_temp,
+                                text: "--- °C",
+                                text_font: font_sm,
+                                text_color: 0xf59e0b,
+                              }
 
               # Solar Status
               - obj:
                   styles: card
                   width: 100%
-                  height: 220
+                  height: 210
                   layout:
                     type: flex
                     flex_flow: column
@@ -458,46 +823,110 @@ lvgl:
                         bg_opa: TRANSP
                         border_width: 0
                         pad_all: 0
-                        layout: {type: flex, flex_flow: row, flex_align_main: space_between}
+                        layout:
+                          {
+                            type: flex,
+                            flex_flow: row,
+                            flex_align_main: space_between,
+                          }
                         widgets:
-                          - label: {text: "PV Leistung", text_font: font_sm, text_color: 0x9ca3af}
-                          - label: {id: lbl_pv_leistung, text: "--- W", text_font: font_sm, text_color: 0xf59e0b}
+                          - label:
+                              {
+                                text: "PV Leistung",
+                                text_font: font_sm,
+                                text_color: 0x9ca3af,
+                              }
+                          - label:
+                              {
+                                id: lbl_pv_leistung,
+                                text: "--- W",
+                                text_font: font_sm,
+                                text_color: 0xf59e0b,
+                              }
                     - obj:
                         width: 100%
                         height: SIZE_CONTENT
                         bg_opa: TRANSP
                         border_width: 0
                         pad_all: 0
-                        layout: {type: flex, flex_flow: row, flex_align_main: space_between}
+                        layout:
+                          {
+                            type: flex,
+                            flex_flow: row,
+                            flex_align_main: space_between,
+                          }
                         widgets:
-                          - label: {text: "Ertrag heute", text_font: font_sm, text_color: 0x9ca3af}
-                          - label: {id: lbl_ertrag_heute, text: "--- kWh", text_font: font_sm, text_color: 0x22c55e}
+                          - label:
+                              {
+                                text: "Ertrag heute",
+                                text_font: font_sm,
+                                text_color: 0x9ca3af,
+                              }
+                          - label:
+                              {
+                                id: lbl_ertrag_heute,
+                                text: "--- kWh",
+                                text_font: font_sm,
+                                text_color: 0x22c55e,
+                              }
                     - obj:
                         width: 100%
                         height: SIZE_CONTENT
                         bg_opa: TRANSP
                         border_width: 0
                         pad_all: 0
-                        layout: {type: flex, flex_flow: row, flex_align_main: space_between}
+                        layout:
+                          {
+                            type: flex,
+                            flex_flow: row,
+                            flex_align_main: space_between,
+                          }
                         widgets:
-                          - label: {text: "Ladestrom", text_font: font_sm, text_color: 0x9ca3af}
-                          - label: {id: lbl_ladestrom, text: "--- A", text_font: font_sm, text_color: 0x22c55e}
+                          - label:
+                              {
+                                text: "Ladestrom",
+                                text_font: font_sm,
+                                text_color: 0x9ca3af,
+                              }
+                          - label:
+                              {
+                                id: lbl_ladestrom,
+                                text: "--- A",
+                                text_font: font_sm,
+                                text_color: 0x22c55e,
+                              }
                     - obj:
                         width: 100%
                         height: SIZE_CONTENT
                         bg_opa: TRANSP
                         border_width: 0
                         pad_all: 0
-                        layout: {type: flex, flex_flow: row, flex_align_main: space_between}
+                        layout:
+                          {
+                            type: flex,
+                            flex_flow: row,
+                            flex_align_main: space_between,
+                          }
                         widgets:
-                          - label: {text: "Max. Leistung heute", text_font: font_sm, text_color: 0x9ca3af}
-                          - label: {id: lbl_max_pv_heute, text: "---", text_font: font_sm, text_color: 0xe5e7eb}
+                          - label:
+                              {
+                                text: "Max. Leistung heute",
+                                text_font: font_sm,
+                                text_color: 0x9ca3af,
+                              }
+                          - label:
+                              {
+                                id: lbl_max_pv_heute,
+                                text: "---",
+                                text_font: font_sm,
+                                text_color: 0xe5e7eb,
+                              }
 
               # Solar forecast
               - obj:
                   styles: card
                   width: 100%
-                  height: 220
+                  height: 210
                   layout:
                     type: flex
                     flex_flow: column
@@ -509,45 +938,109 @@ lvgl:
                         text_font: font_md
                         text_color: 0x03a9f4
                     - obj:
-                        width: 820
+                        width: 100%
                         height: SIZE_CONTENT
                         bg_opa: TRANSP
                         border_width: 0
                         pad_all: 0
-                        layout: {type: flex, flex_flow: row, flex_align_main: space_between}
+                        layout:
+                          {
+                            type: flex,
+                            flex_flow: row,
+                            flex_align_main: space_between,
+                          }
                         widgets:
-                          - label: {text: "Jetzt", text_font: font_sm, text_color: 0x9ca3af}
-                          - label: {id: lbl_solar_now, text: "--- W", text_font: font_sm, text_color: 0xf59e0b}
+                          - label:
+                              {
+                                text: "Jetzt",
+                                text_font: font_sm,
+                                text_color: 0x9ca3af,
+                              }
+                          - label:
+                              {
+                                id: lbl_solar_now,
+                                text: "--- W",
+                                text_font: font_sm,
+                                text_color: 0xf59e0b,
+                              }
                     - obj:
-                        width: 820
+                        width: 100%
                         height: SIZE_CONTENT
                         bg_opa: TRANSP
                         border_width: 0
                         pad_all: 0
-                        layout: {type: flex, flex_flow: row, flex_align_main: space_between}
+                        layout:
+                          {
+                            type: flex,
+                            flex_flow: row,
+                            flex_align_main: space_between,
+                          }
                         widgets:
-                          - label: {text: "Nächste Std", text_font: font_sm, text_color: 0x9ca3af}
-                          - label: {id: lbl_solar_next_hour, text: "--- W", text_font: font_sm, text_color: 0xa1a1aa}
+                          - label:
+                              {
+                                text: "Nächste Std",
+                                text_font: font_sm,
+                                text_color: 0x9ca3af,
+                              }
+                          - label:
+                              {
+                                id: lbl_solar_next_hour,
+                                text: "--- W",
+                                text_font: font_sm,
+                                text_color: 0xa1a1aa,
+                              }
                     - obj:
-                        width: 820
+                        width: 100%
                         height: SIZE_CONTENT
                         bg_opa: TRANSP
                         border_width: 0
                         pad_all: 0
-                        layout: {type: flex, flex_flow: row, flex_align_main: space_between}
+                        layout:
+                          {
+                            type: flex,
+                            flex_flow: row,
+                            flex_align_main: space_between,
+                          }
                         widgets:
-                          - label: {text: "Heute", text_font: font_sm, text_color: 0x9ca3af}
-                          - label: {id: lbl_solar_today, text: "--- kWh", text_font: font_sm, text_color: 0x22c55e}
+                          - label:
+                              {
+                                text: "Heute",
+                                text_font: font_sm,
+                                text_color: 0x9ca3af,
+                              }
+                          - label:
+                              {
+                                id: lbl_solar_today,
+                                text: "--- kWh",
+                                text_font: font_sm,
+                                text_color: 0x22c55e,
+                              }
                     - obj:
-                        width: 820
+                        width: 100%
                         height: SIZE_CONTENT
                         bg_opa: TRANSP
                         border_width: 0
                         pad_all: 0
-                        layout: {type: flex, flex_flow: row, flex_align_main: space_between}
+                        layout:
+                          {
+                            type: flex,
+                            flex_flow: row,
+                            flex_align_main: space_between,
+                          }
                         widgets:
-                          - label: {text: "Morgen", text_font: font_sm, text_color: 0x9ca3af}
-                          - label: {id: lbl_solar_tomorrow, text: "--- kWh", text_font: font_sm, text_color: 0x03a9f4}
+                          - label:
+                              {
+                                text: "Morgen",
+                                text_font: font_sm,
+                                text_color: 0x9ca3af,
+                              }
+                          - label:
+                              {
+                                id: lbl_solar_tomorrow,
+                                text: "--- kWh",
+                                text_font: font_sm,
+                                text_color: 0x03a9f4,
+                              }
 
     ##########################################################################
     # Page 2: Zaehler
@@ -576,7 +1069,12 @@ lvgl:
               flex_flow: column
               flex_align_main: start
             widgets:
-              - label: {text: "Hinterhaus", text_font: font_md, text_color: 0x03a9f4}
+              - label:
+                  {
+                    text: "Hinterhaus",
+                    text_font: font_md,
+                    text_color: 0x03a9f4,
+                  }
               - obj:
                   width: 100%
                   height: SIZE_CONTENT
@@ -584,10 +1082,27 @@ lvgl:
                   border_width: 0
                   pad_top: 12
                   pad_bottom: 4
-                  layout: {type: flex, flex_flow: row, flex_align_main: space_between, flex_align_cross: center}
+                  layout:
+                    {
+                      type: flex,
+                      flex_flow: row,
+                      flex_align_main: space_between,
+                      flex_align_cross: center,
+                    }
                   widgets:
-                    - label: {text: "Bezug aktuell", text_font: font_sm, text_color: 0x9ca3af}
-                    - label: {id: lbl_hh_power, text: "--- W", text_font: font_lg, text_color: 0xffffff}
+                    - label:
+                        {
+                          text: "Bezug aktuell",
+                          text_font: font_sm,
+                          text_color: 0x9ca3af,
+                        }
+                    - label:
+                        {
+                          id: lbl_hh_power,
+                          text: "--- W",
+                          text_font: font_lg,
+                          text_color: 0xffffff,
+                        }
               - obj:
                   width: 100%
                   height: SIZE_CONTENT
@@ -595,20 +1110,54 @@ lvgl:
                   border_width: 0
                   pad_top: 4
                   pad_bottom: 4
-                  layout: {type: flex, flex_flow: row, flex_align_main: space_between, flex_align_cross: center}
+                  layout:
+                    {
+                      type: flex,
+                      flex_flow: row,
+                      flex_align_main: space_between,
+                      flex_align_cross: center,
+                    }
                   widgets:
-                    - label: {text: "Bezug gesamt", text_font: font_sm, text_color: 0x9ca3af}
-                    - label: {id: lbl_hh_totalin, text: "--- kWh", text_font: font_md, text_color: 0xffffff}
+                    - label:
+                        {
+                          text: "Bezug gesamt",
+                          text_font: font_sm,
+                          text_color: 0x9ca3af,
+                        }
+                    - label:
+                        {
+                          id: lbl_hh_totalin,
+                          text: "--- kWh",
+                          text_font: font_md,
+                          text_color: 0xffffff,
+                        }
               - obj:
                   width: 100%
                   height: SIZE_CONTENT
                   bg_opa: TRANSP
                   border_width: 0
                   pad_top: 4
-                  layout: {type: flex, flex_flow: row, flex_align_main: space_between, flex_align_cross: center}
+                  layout:
+                    {
+                      type: flex,
+                      flex_flow: row,
+                      flex_align_main: space_between,
+                      flex_align_cross: center,
+                    }
                   widgets:
-                    - label: {text: "Einspeisung", text_font: font_sm, text_color: 0x9ca3af}
-                    - label: {id: lbl_hh_totalout, text: "--- kWh", text_font: font_md, text_color: 0x22c55e}
+                    - label:
+                        {
+                          text: "Einspeisung",
+                          text_font: font_sm,
+                          text_color: 0x9ca3af,
+                        }
+                    - label:
+                        {
+                          id: lbl_hh_totalout,
+                          text: "--- kWh",
+                          text_font: font_md,
+                          text_color: 0x22c55e,
+                        }
 
         # 1OG Apt card
         - obj:
@@ -620,7 +1169,8 @@ lvgl:
               flex_flow: column
               flex_align_main: start
             widgets:
-              - label: {text: "1OG Apt", text_font: font_md, text_color: 0x03a9f4}
+              - label:
+                  { text: "1OG Apt", text_font: font_md, text_color: 0x03a9f4 }
               - obj:
                   width: 100%
                   height: SIZE_CONTENT
@@ -628,10 +1178,27 @@ lvgl:
                   border_width: 0
                   pad_top: 12
                   pad_bottom: 4
-                  layout: {type: flex, flex_flow: row, flex_align_main: space_between, flex_align_cross: center}
+                  layout:
+                    {
+                      type: flex,
+                      flex_flow: row,
+                      flex_align_main: space_between,
+                      flex_align_cross: center,
+                    }
                   widgets:
-                    - label: {text: "Bezug aktuell", text_font: font_sm, text_color: 0x9ca3af}
-                    - label: {id: lbl_apt_power, text: "--- W", text_font: font_lg, text_color: 0xffffff}
+                    - label:
+                        {
+                          text: "Bezug aktuell",
+                          text_font: font_sm,
+                          text_color: 0x9ca3af,
+                        }
+                    - label:
+                        {
+                          id: lbl_apt_power,
+                          text: "--- W",
+                          text_font: font_lg,
+                          text_color: 0xffffff,
+                        }
               - obj:
                   width: 100%
                   height: SIZE_CONTENT
@@ -639,20 +1206,54 @@ lvgl:
                   border_width: 0
                   pad_top: 4
                   pad_bottom: 4
-                  layout: {type: flex, flex_flow: row, flex_align_main: space_between, flex_align_cross: center}
+                  layout:
+                    {
+                      type: flex,
+                      flex_flow: row,
+                      flex_align_main: space_between,
+                      flex_align_cross: center,
+                    }
                   widgets:
-                    - label: {text: "Bezug gesamt", text_font: font_sm, text_color: 0x9ca3af}
-                    - label: {id: lbl_apt_totalin, text: "--- kWh", text_font: font_md, text_color: 0xffffff}
+                    - label:
+                        {
+                          text: "Bezug gesamt",
+                          text_font: font_sm,
+                          text_color: 0x9ca3af,
+                        }
+                    - label:
+                        {
+                          id: lbl_apt_totalin,
+                          text: "--- kWh",
+                          text_font: font_md,
+                          text_color: 0xffffff,
+                        }
               - obj:
                   width: 100%
                   height: SIZE_CONTENT
                   bg_opa: TRANSP
                   border_width: 0
                   pad_top: 4
-                  layout: {type: flex, flex_flow: row, flex_align_main: space_between, flex_align_cross: center}
+                  layout:
+                    {
+                      type: flex,
+                      flex_flow: row,
+                      flex_align_main: space_between,
+                      flex_align_cross: center,
+                    }
                   widgets:
-                    - label: {text: "Einspeisung", text_font: font_sm, text_color: 0x9ca3af}
-                    - label: {id: lbl_apt_totalout, text: "--- kWh", text_font: font_md, text_color: 0x22c55e}
+                    - label:
+                        {
+                          text: "Einspeisung",
+                          text_font: font_sm,
+                          text_color: 0x9ca3af,
+                        }
+                    - label:
+                        {
+                          id: lbl_apt_totalout,
+                          text: "--- kWh",
+                          text_font: font_md,
+                          text_color: 0x22c55e,
+                        }
 
     ##########################################################################
     # Page 3: Steuerung
@@ -679,22 +1280,27 @@ lvgl:
               flex_align_cross: center
               flex_align_main: space_between
             widgets:
-              - label: {text: "Heizmatte", text_font: font_md, text_color: 0xffffff}
+              - label:
+                  {
+                    text: "Heizmatte",
+                    text_font: font_md,
+                    text_color: 0xffffff,
+                  }
               - switch:
                   id: sw_heizmatte
                   on_value:
                     then:
                       - if:
                           condition:
-                            lambda: 'return x;'
+                            lambda: "return x;"
                           then:
                             - homeassistant.service:
                                 service: switch.turn_on
-                                data: {entity_id: switch.steckdose_heizmatte}
+                                data: { entity_id: switch.steckdose_heizmatte }
                           else:
                             - homeassistant.service:
                                 service: switch.turn_off
-                                data: {entity_id: switch.steckdose_heizmatte}
+                                data: { entity_id: switch.steckdose_heizmatte }
 
   # ── Nav bar ────────────────────────────────────────────────────────────────
   # Rendered on top_layer so it overlays all pages at the bottom
@@ -710,7 +1316,6 @@ text_sensor:
       internal: true
 
 sensor:
-
   - platform: wifi_signal
     id: wifi_rssi
     name: "WiFi RSSI"
@@ -725,6 +1330,14 @@ sensor:
       - lvgl.label.update:
           id: lbl_inv_output
           text: !lambda 'return str_sprintf("%.0f W", x);'
+      - if:
+          condition:
+            lambda: 'return x > id(g_inv_output_max);'
+          then:
+            - globals.set: {id: g_inv_output_max, value: !lambda 'return x;'}
+            - lvgl.label.update:
+                id: lbl_max_pv_heute
+                text: !lambda 'return str_sprintf("%.0f W", x);'
 
   - platform: homeassistant
     id: inv_setpoint
@@ -742,6 +1355,14 @@ sensor:
           id: lbl_inv_temp
           text: !lambda 'return str_sprintf("%.0f °C", x);'
 
+  - platform: homeassistant
+    id: inv_ertrag_heute
+    entity_id: sensor.lumentree800_inverter_ertrag_heute
+    on_value:
+      - lvgl.label.update:
+          id: lbl_inv_leistung_heute
+          text: !lambda 'return str_sprintf("%.2f kWh", x);'
+
   # Akku
   - platform: homeassistant
     id: akku_master_pct
@@ -749,21 +1370,24 @@ sensor:
     on_value:
       - lvgl.arc.update:
           id: arc_master
-          value: !lambda 'return (int)x;'
+          value: !lambda "return (int)x;"
       - lvgl.label.update:
           id: lbl_master_pct
           text: !lambda 'return str_sprintf("%.0f%%", x);'
       - if:
-          condition: {lambda: 'return x > 60;'}
+          condition: { lambda: "return x > 60;" }
           then:
-            - lvgl.arc.update: {id: arc_master, indicator: {arc_color: 0x22c55e}}
+            - lvgl.arc.update:
+                { id: arc_master, indicator: { arc_color: 0x22c55e } }
           else:
             - if:
-                condition: {lambda: 'return x > 20;'}
+                condition: { lambda: "return x > 20;" }
                 then:
-                  - lvgl.arc.update: {id: arc_master, indicator: {arc_color: 0xf59e0b}}
+                  - lvgl.arc.update:
+                      { id: arc_master, indicator: { arc_color: 0xf59e0b } }
                 else:
-                  - lvgl.arc.update: {id: arc_master, indicator: {arc_color: 0xef4444}}
+                  - lvgl.arc.update:
+                      { id: arc_master, indicator: { arc_color: 0xef4444 } }
 
   - platform: homeassistant
     id: akku_slave_pct
@@ -771,37 +1395,180 @@ sensor:
     on_value:
       - lvgl.arc.update:
           id: arc_slave
-          value: !lambda 'return (int)x;'
+          value: !lambda "return (int)x;"
       - lvgl.label.update:
           id: lbl_slave_pct
           text: !lambda 'return str_sprintf("%.0f%%", x);'
       - if:
-          condition: {lambda: 'return x > 60;'}
+          condition: { lambda: "return x > 60;" }
           then:
-            - lvgl.arc.update: {id: arc_slave, indicator: {arc_color: 0x22c55e}}
+            - lvgl.arc.update:
+                { id: arc_slave, indicator: { arc_color: 0x22c55e } }
           else:
             - if:
-                condition: {lambda: 'return x > 20;'}
+                condition: { lambda: "return x > 20;" }
                 then:
-                  - lvgl.arc.update: {id: arc_slave, indicator: {arc_color: 0xf59e0b}}
+                  - lvgl.arc.update:
+                      { id: arc_slave, indicator: { arc_color: 0xf59e0b } }
                 else:
-                  - lvgl.arc.update: {id: arc_slave, indicator: {arc_color: 0xef4444}}
+                  - lvgl.arc.update:
+                      { id: arc_slave, indicator: { arc_color: 0xef4444 } }
 
   - platform: homeassistant
     id: akku_m_t1
     entity_id: sensor.akku_master_temp_1
     on_value:
       - lvgl.label.update:
-          id: lbl_master_temp
-          text: !lambda 'return str_sprintf("%.0f °C", x);'
+          id: lbl_akku_m_akt
+          text: !lambda |-
+            return str_sprintf("%.0f° / %.0f° / %.0f°",
+              id(akku_m_t1).state, id(akku_m_t2).state, id(akku_m_t3).state);
+      - if:
+          condition:
+            lambda: 'return x < id(g_akku_m_min);'
+          then:
+            - globals.set: {id: g_akku_m_min, value: !lambda 'return x;'}
+            - lvgl.label.update:
+                id: lbl_akku_m_min
+                text: !lambda 'return str_sprintf("%.0f °C", x);'
+      - if:
+          condition:
+            lambda: 'return x > id(g_akku_m_max);'
+          then:
+            - globals.set: {id: g_akku_m_max, value: !lambda 'return x;'}
+            - lvgl.label.update:
+                id: lbl_akku_m_max
+                text: !lambda 'return str_sprintf("%.0f °C", x);'
+
+  - platform: homeassistant
+    id: akku_m_t2
+    entity_id: sensor.akku_master_temp_2
+    on_value:
+      - lvgl.label.update:
+          id: lbl_akku_m_akt
+          text: !lambda |-
+            return str_sprintf("%.0f° / %.0f° / %.0f°",
+              id(akku_m_t1).state, id(akku_m_t2).state, id(akku_m_t3).state);
+      - if:
+          condition:
+            lambda: 'return x < id(g_akku_m_min);'
+          then:
+            - globals.set: {id: g_akku_m_min, value: !lambda 'return x;'}
+            - lvgl.label.update:
+                id: lbl_akku_m_min
+                text: !lambda 'return str_sprintf("%.0f °C", x);'
+      - if:
+          condition:
+            lambda: 'return x > id(g_akku_m_max);'
+          then:
+            - globals.set: {id: g_akku_m_max, value: !lambda 'return x;'}
+            - lvgl.label.update:
+                id: lbl_akku_m_max
+                text: !lambda 'return str_sprintf("%.0f °C", x);'
+
+  - platform: homeassistant
+    id: akku_m_t3
+    entity_id: sensor.akku_master_temp_3
+    on_value:
+      - lvgl.label.update:
+          id: lbl_akku_m_akt
+          text: !lambda |-
+            return str_sprintf("%.0f° / %.0f° / %.0f°",
+              id(akku_m_t1).state, id(akku_m_t2).state, id(akku_m_t3).state);
+      - if:
+          condition:
+            lambda: 'return x < id(g_akku_m_min);'
+          then:
+            - globals.set: {id: g_akku_m_min, value: !lambda 'return x;'}
+            - lvgl.label.update:
+                id: lbl_akku_m_min
+                text: !lambda 'return str_sprintf("%.0f °C", x);'
+      - if:
+          condition:
+            lambda: 'return x > id(g_akku_m_max);'
+          then:
+            - globals.set: {id: g_akku_m_max, value: !lambda 'return x;'}
+            - lvgl.label.update:
+                id: lbl_akku_m_max
+                text: !lambda 'return str_sprintf("%.0f °C", x);'
 
   - platform: homeassistant
     id: akku_s_t1
     entity_id: sensor.akku_slave_temp_1
     on_value:
       - lvgl.label.update:
-          id: lbl_slave_temp
-          text: !lambda 'return str_sprintf("%.0f °C", x);'
+          id: lbl_akku_s_akt
+          text: !lambda |-
+            return str_sprintf("%.0f° / %.0f° / %.0f°",
+              id(akku_s_t1).state, id(akku_s_t2).state, id(akku_s_t3).state);
+      - if:
+          condition:
+            lambda: 'return x < id(g_akku_s_min);'
+          then:
+            - globals.set: {id: g_akku_s_min, value: !lambda 'return x;'}
+            - lvgl.label.update:
+                id: lbl_akku_s_min
+                text: !lambda 'return str_sprintf("%.0f °C", x);'
+      - if:
+          condition:
+            lambda: 'return x > id(g_akku_s_max);'
+          then:
+            - globals.set: {id: g_akku_s_max, value: !lambda 'return x;'}
+            - lvgl.label.update:
+                id: lbl_akku_s_max
+                text: !lambda 'return str_sprintf("%.0f °C", x);'
+
+  - platform: homeassistant
+    id: akku_s_t2
+    entity_id: sensor.akku_slave_temp_2
+    on_value:
+      - lvgl.label.update:
+          id: lbl_akku_s_akt
+          text: !lambda |-
+            return str_sprintf("%.0f° / %.0f° / %.0f°",
+              id(akku_s_t1).state, id(akku_s_t2).state, id(akku_s_t3).state);
+      - if:
+          condition:
+            lambda: 'return x < id(g_akku_s_min);'
+          then:
+            - globals.set: {id: g_akku_s_min, value: !lambda 'return x;'}
+            - lvgl.label.update:
+                id: lbl_akku_s_min
+                text: !lambda 'return str_sprintf("%.0f °C", x);'
+      - if:
+          condition:
+            lambda: 'return x > id(g_akku_s_max);'
+          then:
+            - globals.set: {id: g_akku_s_max, value: !lambda 'return x;'}
+            - lvgl.label.update:
+                id: lbl_akku_s_max
+                text: !lambda 'return str_sprintf("%.0f °C", x);'
+
+  - platform: homeassistant
+    id: akku_s_t3
+    entity_id: sensor.akku_slave_temp_3
+    on_value:
+      - lvgl.label.update:
+          id: lbl_akku_s_akt
+          text: !lambda |-
+            return str_sprintf("%.0f° / %.0f° / %.0f°",
+              id(akku_s_t1).state, id(akku_s_t2).state, id(akku_s_t3).state);
+      - if:
+          condition:
+            lambda: 'return x < id(g_akku_s_min);'
+          then:
+            - globals.set: {id: g_akku_s_min, value: !lambda 'return x;'}
+            - lvgl.label.update:
+                id: lbl_akku_s_min
+                text: !lambda 'return str_sprintf("%.0f °C", x);'
+      - if:
+          condition:
+            lambda: 'return x > id(g_akku_s_max);'
+          then:
+            - globals.set: {id: g_akku_s_max, value: !lambda 'return x;'}
+            - lvgl.label.update:
+                id: lbl_akku_s_max
+                text: !lambda 'return str_sprintf("%.0f °C", x);'
 
   - platform: homeassistant
     id: akku_ladestrom
@@ -868,6 +1635,9 @@ sensor:
       - lvgl.label.update:
           id: lbl_hh_power
           text: !lambda 'return str_sprintf("%.0f W", x);'
+      - lvgl.label.update:
+          id: lbl_zaehler_hh_jetzt
+          text: !lambda 'return str_sprintf("%.0f W", x);'
 
   - platform: homeassistant
     id: hh_totalin
@@ -876,6 +1646,14 @@ sensor:
       - lvgl.label.update:
           id: lbl_hh_totalin
           text: !lambda 'return str_sprintf("%.2f kWh", x);'
+      - lvgl.label.update:
+          id: lbl_zaehler_hh_bezug
+          text: !lambda 'return str_sprintf("%.2f kWh", x);'
+      - lvgl.label.update:
+          id: lbl_zaehler_hh_heute
+          text: !lambda |-
+            if (id(g_hh_totalin_start) < 0) return std::string("---");
+            return str_sprintf("%.2f kWh", x - id(g_hh_totalin_start));
 
   - platform: homeassistant
     id: hh_totalout
@@ -883,6 +1661,9 @@ sensor:
     on_value:
       - lvgl.label.update:
           id: lbl_hh_totalout
+          text: !lambda 'return str_sprintf("%.2f kWh", x);'
+      - lvgl.label.update:
+          id: lbl_zaehler_hh_einsp
           text: !lambda 'return str_sprintf("%.2f kWh", x);'
 
   # 1OG Apt
@@ -919,8 +1700,8 @@ binary_sensor:
     on_press:
       - lvgl.widget.update:
           id: sw_heizmatte
-          state: {checked: true}
+          state: { checked: true }
     on_release:
       - lvgl.widget.update:
           id: sw_heizmatte
-          state: {checked: false}
+          state: { checked: false }
