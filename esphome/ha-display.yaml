@@ -732,7 +732,7 @@ lvgl:
                         widgets:
                           - label:
                               {
-                                text: "Max. Leistung",
+                                text: "Limit",
                                 text_font: font_sm,
                                 text_color: 0x9ca3af,
                               }
@@ -1319,7 +1319,7 @@ sensor:
   # Wechselrichter
   - platform: homeassistant
     id: inv_output
-    entity_id: sensor.lumentree800_lumentree800_output
+    entity_id: sensor.lumentree800_output
     on_value:
       - lvgl.label.update:
           id: lbl_inv_output
@@ -1343,7 +1343,7 @@ sensor:
 
   - platform: homeassistant
     id: inv_temp
-    entity_id: sensor.lumentree800_lumentree800_temperature
+    entity_id: sensor.lumentree800_temperature
     on_value:
       - lvgl.label.update:
           id: lbl_inv_temp
